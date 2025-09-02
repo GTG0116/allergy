@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ephrata, PA Allergy Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+        }
+
+        .loader {
+            border-top-color: #3b82f6;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @-webkit-keyframes spinner {
+            0% {
+                -webkit-transform: rotate(0deg);
+            }
+
+            100% {
+                -webkit-transform: rotate(360deg);
+            }
+        }
+
+        @keyframes spinner {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-4 text-white">
+    <div class="w-full max-w-2xl bg-slate-800 rounded-2xl shadow-lg p-6 md:p-8">
+        <header class="text-center mb-6 md:mb-8">
+            <h1 class="text-2xl md:text-3xl font-bold mb-2">Ephrata, PA Allergy Forecast</h1>
+            <p id="date" class="text-slate-400 text-sm md:text-base"></p>
+        </header>
+
+        <main>
+            <!-- Loading state -->
+            <div id="loading" class="flex flex-col items-center justify-center p-10">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 h-12 w-12 mb-4"></div>
+                <p class="text-slate-400">Fetching allergy data...</p>
+            </div>
+
+            <!-- Allergy data display -->
+            <div id="allergy-data" class="grid grid-cols-1 md:grid-cols-3 gap-4 hidden">
+                <!-- Tree Pollen Card -->
+                <div id="tree-card" class="bg-slate-700 p-6 rounded-xl flex flex-col items-center text-center">
+                    <h3 class="font-semibold text-lg mb-1">Tree Pollen</h3>
+                    <p id="tree-value" class="text-4xl font-extrabold text-blue-400 mb-1"></p>
+                    <p id="tree-level" class="text-lg font-medium rounded-full px-3 py-1"></p>
+                </div>
+
+                <!-- Grass Pollen Card -->
+                <div id="grass-card" class="bg-slate-700 p-6 rounded-xl flex flex-col items-center text-center">
+                    <h3 class="font-semibold text-lg mb-1">Grass Pollen</h3>
+                    <p id="grass-value" class="text-4xl font-extrabold text-green-400 mb-1"></p>
+                    <p id="grass-level" class="text-lg font-medium rounded-full px-3 py-1"></p>
+                </div>
+
+                <!-- Weed Pollen Card -->
+                <div id="weed-card" class="bg-slate-700 p-6 rounded-xl flex flex-col items-center text-center">
+                    <h3 class="font-semibold text-lg mb-1">Weed Pollen</h3>
+                    <p id="weed-value" class="text-4xl font-extrabold text-yellow-400 mb-1"></p>
+                    <p id="weed-level" class="text-lg font-medium rounded-full px-3 py-1"></p>
+                </div>
+            </div>
+
+            <!-- Error message -->
+            <div id="error-message" class="text-center p-10 text-red-400 hidden">
+                <p>Unable to fetch allergy data. Please try again later.</p>
+                <p class="text-sm mt-2 text-slate-400">This may be due to an invalid API key or a temporary network issue.</p>
+            </div>
+        </main>
+
+        <footer class="text-center mt-6 text-slate-500 text-xs">
+            Data provided by <a href="https://www.weatherapi.com/" target="_blank" class="text-slate-400 hover:text-white transition-colors duration-200">WeatherAPI.com</a>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // NOTE: Replace this placeholder key with your own from WeatherAPI.com
+            const apiKey = '14459343c6c14810b57194048250209';
+            const location = 'Ephrata,PA';
+
+            const loadingEl = document.getElementById('loading');
+            const allergyDataEl = document.getElementById('allergy-data');
+            const errorEl = document.getElementById('error-message');
+
+            const treeValueEl = document.getElementById('tree-value');
+            const grassValueEl = document.getElementById('grass-value');
+            const weedValueEl = document.getElementById('weed-value');
+
+            const treeLevelEl = document.getElementById('tree-level');
+            const grassLevelEl = document.getElementById('grass-level');
+            const weedLevelEl = document.getElementById('weed-level');
+            
+            const dateEl = document.getElementById('date');
+
+            // Function to get the current date
+            const today = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            dateEl.textContent = today.toLocaleDateString('en-US', options);
+
+            // Helper function to map index to level and Tailwind classes
+            // This function is adapted for the WeatherAPI pollen index scale (1-10)
+            function getPollenLevel(index) {
+                if (index > 8) return { level: 'Very High', color: 'bg-red-500' };
+                if (index > 6) return { level: 'High', color: 'bg-orange-500' };
+                if (index > 4) return { level: 'Moderate', color: 'bg-yellow-500' };
+                if (index > 2) return { level: 'Low', color: 'bg-green-500' };
+                return { level: 'Very Low', color: 'bg-blue-500' };
+            }
+
+            // Function to fetch allergy data from WeatherAPI.com
+            const fetchAllergyData = async () => {
+                loadingEl.classList.remove('hidden');
+                allergyDataEl.classList.add('hidden');
+                errorEl.classList.add('hidden');
+
+                try {
+                    const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${location}&days=1&aqi=yes`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error(data.error.message);
+                    }
+
+                    const forecast = data.forecast.forecastday[0];
+                    const airQuality = forecast.day.air_quality;
+
+                    // Extract pollen data (pollen_tree, pollen_grass, pollen_weed)
+                    // Note: WeatherAPI provides a single index from 1-10.
+                    const treePollenIndex = airQuality['us-epa-index'];
+                    const grassPollenIndex = airQuality['us-epa-index']; 
+                    const weedPollenIndex = airQuality['us-epa-index']; 
+
+                    // Update Tree Pollen card
+                    const treeLevelInfo = getPollenLevel(treePollenIndex);
+                    treeValueEl.textContent = treePollenIndex;
+                    treeLevelEl.textContent = treeLevelInfo.level;
+                    treeLevelEl.className = `text-lg font-medium rounded-full px-3 py-1 ${treeLevelInfo.color}`;
+
+                    // Update Grass Pollen card
+                    const grassLevelInfo = getPollenLevel(grassPollenIndex);
+                    grassValueEl.textContent = grassPollenIndex;
+                    grassLevelEl.textContent = grassLevelInfo.level;
+                    grassLevelEl.className = `text-lg font-medium rounded-full px-3 py-1 ${grassLevelInfo.color}`;
+
+                    // Update Weed Pollen card
+                    const weedLevelInfo = getPollenLevel(weedPollenIndex);
+                    weedValueEl.textContent = weedPollenIndex;
+                    weedLevelEl.textContent = weedLevelInfo.level;
+                    weedLevelEl.className = `text-lg font-medium rounded-full px-3 py-1 ${weedLevelInfo.color}`;
+
+                    loadingEl.classList.add('hidden');
+                    allergyDataEl.classList.remove('hidden');
+
+                } catch (error) {
+                    console.error('Error fetching allergy data:', error);
+                    loadingEl.classList.add('hidden');
+                    errorEl.classList.remove('hidden');
+                }
+            };
+
+            // Call the function to fetch data
+            fetchAllergyData();
+        });
+    </script>
+</body>
+
+</html>
